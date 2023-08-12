@@ -67,15 +67,16 @@
       <CompileAs>CompileAsCpp</CompileAs>
       <ErrorReporting>Queue</ErrorReporting>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Users\espau\Documents\GitHub\eqgame_dll\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\Detours\lib;C:\Users\espau\Documents\GitHub\eqgame_dll\zlib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\Detours\lib;..\zlib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <OutputFile>E:\EverQuest Trilogy\eqgame.dll</OutputFile>
       <SuppressStartupBanner>false</SuppressStartupBanner>
-      <AdditionalDependencies>zdll.lib;ws2_32.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>zlib.lib;ws2_32.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/NODEFAULTLIB:msvcrt.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -110,7 +110,7 @@ void AddDetourf(DWORD address, ...)
 	va_start(marker, address);
 	DWORD Parameters[3];
 	DWORD nParameters=0;
-	while (i!=-1) 
+	while (i!=-1)
 	{
 		if (nParameters<3)
 		{
@@ -167,12 +167,12 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 
 		//first, get name of opcode;
 		std::string lookupName = get_opcode_name(emu_opcode);
-		Log.Out(Logs::General, Logs::General, "Converted incoming eq opcode to EmuName: %s", lookupName.c_str());
+		Log.Out(Logs::General, Logs::General, "  Converted incoming eq opcode %s to EmuName: %s", int_to_hex<uint16_t>(emu_opcode).c_str(), lookupName.c_str());
 
 		//TODO: Do translation
 		EQApplicationPacket* inapp = new EQApplicationPacket(ident.m_oldpatches[0]->opcodes->NameSearch(lookupName.c_str()), (unsigned char*)Buffer, len);
 		EQApplicationPacket* outapp = ident.m_oldpatches[0]->structs->Decode(inapp);
-		
+
 		//get eq opcode from emu name
 		uint16_t id = ident.m_oldpatches[0]->opcodes->EmuToEQ(ident.m_oldpatches[0]->opcodes->NameSearch(lookupName.c_str()));
 
@@ -185,7 +185,7 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 			memcpy((void*)buffer, outapp->pBuffer, outapp->size);
 			len = outapp->size;
 
-			Log.Out(Logs::General, Logs::General, "Final incoming eq opcode: %s", int_to_hex<uint16_t>(id).c_str());
+			Log.Out(Logs::General, Logs::General, "  Final incoming eq opcode: %s Size %i", int_to_hex<uint16_t>(id).c_str(), outapp->size);
 
 
 			DWORD result;
@@ -201,7 +201,7 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 		else
 		{
 			//no outapp
-			Log.Out(Logs::General, Logs::General, "NO OUTAPP FOR OPCODE: %s", int_to_hex<uint16_t>(emu_opcode).c_str());
+			Log.Out(Logs::General, Logs::General, "  NO OUTAPP FOR OPCODE: %s", int_to_hex<uint16_t>(emu_opcode).c_str());
 			return 1;
 		}
 	}
@@ -225,10 +225,10 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 
 		//first, get name of opcode
 		std::string lookupName = ident.m_oldpatches[0]->opcodes->EQToName(emu_opcode);
-		Log.Out(Logs::General, Logs::General, "Converted emu opcode to EmuName: %s", lookupName.c_str());
+		Log.Out(Logs::General, Logs::General, "  Converted emu opcode to EmuName: %s", lookupName.c_str());
 		//see what maps to that opcode by id
 		uint16 id = get_opcode_id(lookupName);
-		Log.Out(Logs::General, Logs::General, "Converted emu opcode to eq opcode: %s", int_to_hex<uint16_t>(id).c_str());
+		Log.Out(Logs::General, Logs::General, "  Converted emu opcode to eq opcode: %s", int_to_hex<uint16_t>(id).c_str());
 
 		//TODO: Do translation
 
@@ -246,7 +246,7 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 			memcpy((void*)buffer, outapp->pBuffer, outapp->size);
 			len = outapp->size;
 
-			Log.Out(Logs::General, Logs::General, "Final eq opcode: %s Len: %i", int_to_hex<uint16_t>(id).c_str(), len);
+			Log.Out(Logs::General, Logs::General, "  Final outgoing eq opcode: %s Len: %i", int_to_hex<uint16_t>(id).c_str(), len);
 
 			DWORD result;
 			if (id != 0x0000)
@@ -300,6 +300,25 @@ LPSTR WINAPI GetModuleFileNameA_detour()
 	}
 	return GetModuleFileNameA_tramp();
 }
+
+typedef DWORD*(__cdecl* WaitMessage_t)();
+WaitMessage_t WaitMessage_Trampoline;
+DWORD* __cdecl WaitMessage_Detour()
+{
+	DWORD *ret = WaitMessage_Trampoline();
+
+	uint16 opcode1 = (uint16)Arrival_Data_Detour(ret)[0];
+
+	Log.Out(Logs::General, Logs::General, "WaitMessage resolved with: %s", int_to_hex<uint16>(opcode1).c_str());
+
+	// Drop OP_LogServer during WorldAuthenticate, trilogy isn't ready for it when the mac server sends it
+	if (*(BYTE*)0x6b63c0 && opcode1 == 0x41c3) {
+		return WaitMessage_Trampoline();
+	}
+
+	return ret;
+}
+
 DWORD gmfadress = 0;
 DWORD wpsaddress = 0;
 DWORD swAddress = 0;
@@ -323,6 +342,7 @@ void InitHooks()
 	Arrival_Data_Trampoline = (Arrival_Data_t)DetourFunction((PBYTE)0x004F4C90, (PBYTE)Arrival_Data_Detour);
 	SendExeChecksum_Trampoline = (SendExeChecksum_t)DetourFunction((PBYTE)0x004A4116, (PBYTE)SendExeChecksum_Detour);
 	GetModuleFileNameA_tramp = (GetModuleFileNameA_t)DetourFunction((PBYTE)gmfadress, (PBYTE)GetModuleFileNameA_detour);
+	WaitMessage_Trampoline = (WaitMessage_t)DetourFunction((PBYTE)0x004e04d1, (PBYTE)WaitMessage_Detour);
 
 	bInitalized=true;
 }
@@ -346,7 +366,7 @@ BOOL APIENTRY DllMain( HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 {
 	if (ul_reason_for_call==DLL_PROCESS_ATTACH)
 	{
-
+		Log.MakeDirectory("logs");
 		Log.LoadLogSettingsDefaults();
 		Log.StartFileLogs("EQhack_");
 		//MessageBox(NULL,"loading","",MB_OK);

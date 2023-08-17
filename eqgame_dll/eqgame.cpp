@@ -142,7 +142,7 @@ char** __cdecl Arrival_Data_Detour(DWORD* Buffer)
 	//get eqemu style opcode
 	uint16 emu_opcode = ntohs(opcode1);
 
-	Log.Out(Logs::General, Logs::General, "Incoming RAW opcode: %s : %s", int_to_hex<uint16>((uint16)res[0]).c_str(), get_opcode_name(emu_opcode).c_str());
+	Log.Out(Logs::General, Logs::Server_Client_Packet, "RAW opcode [%s] [%s]", int_to_hex<uint16>((uint16)res[0]).c_str(), get_opcode_name(emu_opcode).c_str());
 
 	return res;
 }
@@ -158,7 +158,6 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 	//get eqemu style opcode
 	uint16 emu_opcode = ntohs(Opcode);
 	conn_ptr = (DWORD*)con;
-	Log.Out(Logs::General, Logs::General, "Incoming opcode: %s Size %i", int_to_hex<uint16_t>(emu_opcode).c_str(), len);
 	EQStreamIdentifier::OldPatch* p;
 	//should only be 1 for testing...
 	if (!ident.m_oldpatches.empty())
@@ -167,7 +166,6 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 
 		//first, get name of opcode;
 		std::string lookupName = get_opcode_name(emu_opcode);
-		Log.Out(Logs::General, Logs::General, "  Converted incoming eq opcode %s to EmuName: %s", int_to_hex<uint16_t>(emu_opcode).c_str(), lookupName.c_str());
 
 		//TODO: Do translation
 		EQApplicationPacket* inapp = new EQApplicationPacket(ident.m_oldpatches[0]->opcodes->NameSearch(lookupName.c_str()), (unsigned char*)Buffer, len);
@@ -176,16 +174,16 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 		//get eq opcode from emu name
 		uint16_t id = ident.m_oldpatches[0]->opcodes->EmuToEQ(ident.m_oldpatches[0]->opcodes->NameSearch(lookupName.c_str()));
 
-		//ntohs - eq style opcode
-		id = htons(id);
-
 		if (outapp)
 		{
-			char* buffer = new char[outapp->size];
-			memcpy((void*)buffer, outapp->pBuffer, outapp->size);
-			len = outapp->size;
+			Log.Out(Logs::General, Logs::Server_Client_Packet, "Converted [%s] [%s] [Size: %u] to [%s] [Size: %u]",
+				lookupName.c_str(), int_to_hex<uint16_t>(emu_opcode).c_str(), len, int_to_hex<uint16_t>(id).c_str(), outapp->size);
 
-			Log.Out(Logs::General, Logs::General, "  Final incoming eq opcode: %s Size %i", int_to_hex<uint16_t>(id).c_str(), outapp->size);
+			//ntohs - eq style opcode
+			id = htons(id);
+			len = outapp->size;
+			char* buffer = new char[len];
+			memcpy((void*)buffer, outapp->pBuffer, len);
 
 
 			DWORD result;
@@ -201,7 +199,7 @@ DWORD __stdcall CEverQuest__HandleWorldMessage_Detour(DWORD *con, unsigned __int
 		else
 		{
 			//no outapp
-			Log.Out(Logs::General, Logs::General, "  NO OUTAPP FOR OPCODE: %s", int_to_hex<uint16_t>(emu_opcode).c_str());
+			Log.Out(Logs::General, Logs::Server_Client_Packet, "NO OUTAPP FOR OPCODE: [%s - %s] [Size: %u]", lookupName.c_str(), int_to_hex<uint16_t>(emu_opcode).c_str(), len);
 			return 1;
 		}
 	}
@@ -216,7 +214,7 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 	//get eqemu style opcode
 	uint16 emu_opcode = ntohs(Opcode);
 
-	Log.Out(Logs::General, Logs::General, "Outgoing opcode: %s Size %i", int_to_hex<uint16_t>(emu_opcode).c_str(), len);
+	Log.Out(Logs::General, Logs::Client_Server_Packet, "Outgoing opcode: %s Size %i", int_to_hex<uint16_t>(emu_opcode).c_str(), len);
 	EQStreamIdentifier::OldPatch* p;
 	//should only be 1 for testing...
 	if (!ident.m_oldpatches.empty())
@@ -225,10 +223,8 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 
 		//first, get name of opcode
 		std::string lookupName = ident.m_oldpatches[0]->opcodes->EQToName(emu_opcode);
-		Log.Out(Logs::General, Logs::General, "  Converted emu opcode to EmuName: %s", lookupName.c_str());
 		//see what maps to that opcode by id
 		uint16 id = get_opcode_id(lookupName);
-		Log.Out(Logs::General, Logs::General, "  Converted emu opcode to eq opcode: %s", int_to_hex<uint16_t>(id).c_str());
 
 		//TODO: Do translation
 
@@ -237,16 +233,14 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 
 		if (outapp)
 		{
-
+			Log.Out(Logs::General, Logs::Client_Server_Packet, "Converted [%s] [%s] [Size: %u] to [%s] [Size: %u]",
+				lookupName.c_str(), int_to_hex<uint16_t>(emu_opcode).c_str(), len, int_to_hex<uint16_t>(id).c_str(), outapp->size);
 
 			//ntohs - eq style opcode
 			id = htons(id);
-
-			char* buffer = new char[outapp->size];
-			memcpy((void*)buffer, outapp->pBuffer, outapp->size);
 			len = outapp->size;
-
-			Log.Out(Logs::General, Logs::General, "  Final outgoing eq opcode: %s Len: %i", int_to_hex<uint16_t>(id).c_str(), len);
+			char* buffer = new char[len];
+			memcpy((void*)buffer, outapp->pBuffer, len);
 
 			DWORD result;
 			if (id != 0x0000)
@@ -265,6 +259,11 @@ DWORD __cdecl SendMessage_Detour(DWORD *con, unsigned __int32 Opcode, char *Buff
 				return result;
 			}
 		}
+		else
+		{
+			Log.Out(Logs::General, Logs::Client_Server_Packet, "NO OUTAPP FOR OPCODE: [%s - %s] [Size: %u]", lookupName.c_str(), int_to_hex<uint16_t>(emu_opcode).c_str(), len);
+		}
+
 		if (outapp == inapp)
 		{
 			safe_delete(outapp);
@@ -308,8 +307,6 @@ DWORD* __cdecl WaitMessage_Detour()
 	DWORD *ret = WaitMessage_Trampoline();
 
 	uint16 opcode1 = (uint16)Arrival_Data_Detour(ret)[0];
-
-	Log.Out(Logs::General, Logs::General, "WaitMessage resolved with: %s", int_to_hex<uint16>(opcode1).c_str());
 
 	// Drop OP_LogServer during WorldAuthenticate, trilogy isn't ready for it when the mac server sends it
 	if (*(BYTE*)0x6b63c0 && opcode1 == 0x41c3) {
